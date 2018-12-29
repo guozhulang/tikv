@@ -707,6 +707,76 @@ impl ScalarFunc {
             .collect::<Vec<_>>();
         Ok(Some(Cow::Owned(r)))
     }
+
+    #[inline]
+    pub fn field_int<'a, 'b: 'a>(
+        &'b self,
+        ctx: &mut EvalContext,
+        row: &'a [Datum],
+    ) -> Result<Option<i64>> {
+        let lhs = try_opt!(self.children[0].eval_int(ctx, row));
+        let lenght = self.children.len();
+        for i in 1..lenght {
+            let rhs = try_opt!(self.children[i].eval_int(ctx, row));
+            if lhs == rhs {
+                return Ok(Some(i as i64));
+            }
+        }
+        Ok(Some(0 as i64))
+    }
+
+    #[inline]
+    pub fn field_real<'a, 'b: 'a>(
+        &'b self,
+        ctx: &mut EvalContext,
+        row: &'a [Datum],
+    ) -> Result<Option<i64>> {
+        let lhs = try_opt!(self.children[0].eval_real(ctx, row));
+        let lenght = self.children.len();
+        for i in 1..lenght {
+            let rhs = try_opt!(self.children[i].eval_real(ctx, row));
+            if lhs == rhs {
+                return Ok(Some(i as i64));
+            }
+        }
+        Ok(Some(0 as i64))   
+    }
+
+    #[inline]
+    pub fn field_string<'a, 'b: 'a>(
+        &'b self,
+        ctx: &mut EvalContext,
+        row: &'a [Datum],
+    ) -> Result<Option<i64>> {
+        let lhs = try_opt!(self.children[0].eval_string(ctx, row));
+        let lenght = self.children.len();  
+        for i in 1..lenght {
+            let rhs = try_opt!(self.children[i].eval_string(ctx, row));
+            if lhs == rhs {
+                return Ok(Some(i as i64));
+            }
+        }
+        Ok(Some(0 as i64))
+    }
+    
+     #[inline]
+    pub fn find_in_set<'a, 'b: 'a>(
+        &'b self,
+        ctx: &mut EvalContext,
+        row: &'a [Datum],
+    ) -> Result<Option<i64>> {
+        let lhs = try_opt!(self.children[0].eval_string(ctx, row));
+        let rhs = try_opt!(self.children[1].eval_string(ctx, row));
+        if rhs.len() == 0 {
+            return Ok(None);
+        }       
+        for (i, s) in rhs.split(|u| *u as char == ',').enumerate() {
+            if lhs == s {
+                return Ok(Some((i+1) as i64));
+            }
+        }
+        Ok(Some(0 as i64)) 
+    }  
 }
 
 // Returns (isize, is_positive): convert an i64 to usize, and whether the input is positive
@@ -2431,5 +2501,162 @@ mod tests {
             let got = eval_func(ScalarFuncSig::RpadBinary, &[s, len, pad]).unwrap();
             assert_eq!(got, exp);
         }
+    }
+    #[test]
+    fn test_field() {
+        let mut ctx = EvalContext::default();
+        let string_cases = vec![
+            (
+                vec![
+                    Datum::Bytes(b"ej".to_vec()),
+                    Datum::Bytes(b"Hej".to_vec()),
+                    Datum::Bytes(b"ej".to_vec()),
+                    Datum::Bytes(b"heja".to_vec()),
+                    Datum::Bytes(b"foo".to_vec()),
+                ],
+                Datum::I64(2),
+            ),
+            (
+                vec![
+                    Datum::Bytes(b"fo".to_vec()),
+                    Datum::Bytes(b"Hej".to_vec()),
+                    Datum::Bytes(b"Heja".to_vec()),
+                    Datum::Bytes(b"hej".to_vec()),
+                    Datum::Bytes(b"foo".to_vec()),
+                ],
+                Datum::I64(0),
+            ),
+            (
+                vec![
+                    Datum::Bytes(b"ej".to_vec()),
+                    Datum::Bytes(b"Hej".to_vec()),
+                    Datum::Bytes(b"ej".to_vec()),
+                    Datum::Bytes(b"heja".to_vec()),
+                    Datum::Bytes(b"ej".to_vec()),
+                    Datum::Bytes(b"hej".to_vec()),
+                    Datum::Bytes(b"foo".to_vec()),
+
+                ],
+                Datum::I64(2),
+            ),
+            (
+                vec![
+                    Datum::Null,
+                    Datum::Bytes(b"Hej".to_vec()),
+                    Datum::Bytes(b"ej".to_vec()),
+                    Datum::Bytes(b"heja".to_vec()),
+                    Datum::Bytes(b"ej".to_vec()),
+                    Datum::Bytes(b"hej".to_vec()),
+                    Datum::Bytes(b"foo".to_vec()),
+
+                ],
+                Datum::I64(0),
+            ),
+        ];
+        for (args, exp) in int_cases {
+            let children: Vec<Expr> = (0..args.len()).map(|id| col_expr(id as i64)).collect();
+            let op = scalar_func_expr(ScalarFuncSig::FieldString, &children);
+            let e = Expression::build(&ctx, op).unwrap();
+            let res = e.eval(&mut ctx, &args).unwrap();
+            assert_eq!(res, exp);
+        }
+        let int_cases = vec![
+            (
+                vec![
+                    Datum::I64(1),
+                    Datum::I64(2),
+                    Datum::I64(3),
+                    Datum::I64(11),
+                    Datum::I64(1),
+                ],
+                Datum::I64(4),
+            ),
+            (
+                vec![
+                    Datum::I64(4),
+                    Datum::I64(2),
+                    Datum::I64(3),
+                    Datum::I64(11),
+                    Datum::I64(1),
+                ],
+                Datum::I64(0),
+            ),
+            (
+                vec![
+                    Datum::I64(1),
+                    Datum::I64(2),
+                    Datum::I64(1),
+                    Datum::I64(11),
+                    Datum::I64(1),
+                ],
+                Datum::I64(2),
+            ),
+            (
+                vec![
+                    Datum::Null,
+                    Datum::I64(2),
+                    Datum::I64(3),
+                    Datum::I64(11),
+                    Datum::I64(1),
+                ],
+                Datum::I64(0),
+            ),
+        ];
+        for (args, exp) in int_cases {
+            let children: Vec<Expr> = (0..args.len()).map(|id| col_expr(id as i64)).collect();
+            let op = scalar_func_expr(ScalarFuncSig::FieldInt, &children);
+            let e = Expression::build(&ctx, op).unwrap();
+            let res = e.eval(&mut ctx, &args).unwrap();
+            assert_eq!(res, exp);
+        }
+        let real_cases = vec![
+            (
+                vec![
+                    Datum::F64(1.1),
+                    Datum::F64(2.1),
+                    Datum::F64(3.1),
+                    Datum::F64(11.1),
+                    Datum::F64(1.1),
+                ],
+                Datum::I64(4),
+            ),
+            (
+                vec![
+                    Datum::F64(1.10),
+                    Datum::F64(0),
+                    Datum::F64(1.1),
+                ],
+                Datum::I64(2),
+            ),
+            (
+                vec![
+                    Datum::F64(1.1),
+                    Datum::F64(2.1),
+                    Datum::F64(1.1),
+                    Datum::F64(11.1),
+                    Datum::F64(1.1),
+                ],
+                Datum::I64(2),
+            ),
+            (
+                vec![
+                    Datum::Null,
+                    Datum::F64(2.1),
+                    Datum::F64(1.1),
+                    Datum::F64(11.1),
+                    Datum::F64(1.1),
+                ],
+                Datum::I64(2),
+            ),
+        ];
+        
+        for (args, exp) in int_cases {
+            let children: Vec<Expr> = (0..args.len()).map(|id| col_expr(id as i64)).collect();
+            let op = scalar_func_expr(ScalarFuncSig::FieldReal, &children);
+            let e = Expression::build(&ctx, op).unwrap();
+            let res = e.eval(&mut ctx, &args).unwrap();
+            assert_eq!(res, exp);
+        }
+        
     }
 }

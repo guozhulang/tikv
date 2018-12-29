@@ -340,6 +340,10 @@ impl ScalarFunc {
             | ScalarFuncSig::LeastTime
             | ScalarFuncSig::IntervalInt
             | ScalarFuncSig::Elt
+            | ScalarFuncSig::FieldInt
+            | ScalarFuncSig::FieldReal
+            | ScalarFuncSig::FieldString
+            | ScalarFuncSig::FindInSet
             | ScalarFuncSig::IntervalReal => (2, usize::MAX),
 
             ScalarFuncSig::JsonSetSig
@@ -827,6 +831,10 @@ dispatch_call! {
 
         UncompressedLength => uncompressed_length,
         Strcmp => strcmp,
+        FieldInt => field_int,
+        FieldReal => field_real,
+        FieldString => field_string,
+        FindInSet => find_in_set,
     }
     REAL_CALLS {
         CastIntAsReal => cast_int_as_real,
