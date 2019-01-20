@@ -145,7 +145,14 @@ where
     {
         let bootstrapped = self.check_cluster_bootstrapped()?;
         let mut store_id = self.check_store(&engines)?;
-        if store_id == INVALID_ID {
+        if bootstrapped && store_id == INVALID_ID {
+            return Err(box_err!(
+                "store is empty, but cluster {} is bootstrapped, \
+                 maybe you need to remove the TiKV from pd\
+                 and start again",
+                self.cluster_id
+            ));
+        } else if store_id == INVALID_ID {
             store_id = self.bootstrap_store(&engines)?;
         } else if !bootstrapped {
             // We have saved data before, and the cluster must be bootstrapped.
